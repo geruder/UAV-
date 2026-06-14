@@ -94,6 +94,17 @@ def predict_from_features(vec: np.ndarray) -> dict:
     }
 
 
+def warmup() -> None:
+    """Eagerly load the model + scaler and run one dummy forward, so the first
+    real request (and the user's teacher's visit) is instant rather than paying
+    the checkpoint-load cost on demand."""
+    _load()
+    try:
+        predict_from_features(np.zeros(len(FEATURE_NAMES), dtype=float))
+    except Exception:
+        pass  # warmup is best-effort; never block startup on it
+
+
 def predict(track: dict[str, np.ndarray], object_count: int) -> dict:
     """Predict intent for one raw track (the main entry point).
 

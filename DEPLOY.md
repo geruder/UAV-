@@ -37,7 +37,17 @@ flyctl launch        # detects the Dockerfile; accept defaults
 flyctl deploy
 ```
 
+## Keeping it always-on (so the link works whenever someone visits)
+Render's **free** plan sleeps after ~15 min idle → a cold visitor waits ~50–60s.
+The app **preloads the KAN at startup** (see `lifespan` in `api/server.py`), so once
+an instance is awake, responses are instant. To keep it awake:
+- Create a free **UptimeRobot** (or cron-job.org) monitor that pings
+  `https://<your-app>.onrender.com/api/metrics` every **5–10 minutes**.
+- A single always-on service fits within Render's free 750 instance-hours/month.
+- Alternatively, the **Starter plan ($7/mo)** never sleeps — zero tricks.
+
 ## Notes / gotchas
+- **Startup takes ~20s** (model preload). Render waits for this on deploy; it's normal.
 - **Cold start:** the *first* classification loads the KAN checkpoint (a few seconds);
   subsequent requests are instant. On free tiers the instance also sleeps when idle.
 - **Memory:** torch + a tiny KAN fits comfortably; ~512 MB is enough for CPU inference.

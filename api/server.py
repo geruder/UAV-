@@ -15,6 +15,7 @@ from __future__ import annotations
 import io
 import json
 import os
+from contextlib import asynccontextmanager
 
 import numpy as np
 import pandas as pd
@@ -25,7 +26,7 @@ from pydantic import BaseModel, Field
 from core.config import (
     Intent, INTENT_NAMES, INTENT_COLORS, PARAMETERS, TRACK_LENGTH, TORQUE_ENVELOPE_PCT,
 )
-from api.predict import predict
+from api.predict import predict, warmup
 from api.geo import (
     GRID_N, MAP_CENTER, MAP_SPAN, strategic_value_grid, synthesize_ground_path,
     risk_heatmap, locations_view, latlon_path_to_grid,
@@ -33,7 +34,16 @@ from api.geo import (
 from api.synth import SLIDERS, synth_from_levels
 from data.generator import _generate
 
-app = FastAPI(title="UAV Intent Estimation", version="1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Preload the KAN at startup so every request (including cold visits to a
+    # warmed instance) is instant instead of paying the model-load cost on demand.
+    warmup()
+    yield
+
+
+app = FastAPI(title="UAV Intent Estimation", version="1.0", lifespan=lifespan)
 
 _HERE = os.path.dirname(__file__)
 _WEB = os.path.join(_HERE, "..", "web", "index.html")
