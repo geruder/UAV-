@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from core.config import (
@@ -47,7 +48,11 @@ app = FastAPI(title="UAV Intent Estimation", version="1.0", lifespan=lifespan)
 
 _HERE = os.path.dirname(__file__)
 _WEB = os.path.join(_HERE, "..", "web", "index.html")
+_IMG = os.path.join(_HERE, "..", "web", "img")
 _METRICS = os.path.join(_HERE, "..", "model", "metrics.json")
+
+# Serve the training figures used by the About section.
+app.mount("/img", StaticFiles(directory=_IMG), name="img")
 
 
 # --- request / response models ------------------------------------------------

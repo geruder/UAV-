@@ -67,6 +67,18 @@
   .site-row .ico { text-align:center; }
   #maplegend { margin-top:8px; }
   .ok-badge { color:var(--benign); } .bad-badge { color:var(--hostile); }
+  .about h3 { font-size:15px; margin:16px 0 6px; color:var(--ink); }
+  .about h3:first-child { margin-top:2px; }
+  .about p { font-size:13px; color:var(--muted); line-height:1.6; max-width:920px; }
+  .about .small { font-size:12px; opacity:.85; }
+  .figrow { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:12px 0; }
+  .figure { background:#0c0f13; border:1px solid var(--line); border-radius:8px; padding:8px; }
+  .figure img { width:100%; height:190px; object-fit:contain; background:#fff; border-radius:4px; }
+  .figure .cap { font-size:12px; color:var(--muted); margin-top:7px; line-height:1.5; }
+  .figure .cap b { color:var(--ink); }
+  .tut { display:grid; gap:9px; font-size:13px; color:var(--muted); line-height:1.6; max-width:920px; }
+  .tut b { color:var(--ink); }
+  @media (max-width:760px){ .figrow { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -78,6 +90,7 @@
     <button class="tab active" data-mode="simulate" onclick="setMode('simulate')">Simulate</button>
     <button class="tab" data-mode="configure" onclick="setMode('configure')">Configure (sliders)</button>
     <button class="tab" data-mode="upload" onclick="setMode('upload')">Upload CSV/JSON</button>
+    <button class="tab" data-mode="about" onclick="setMode('about')">About</button>
   </div>
 
   <!-- SIMULATE -->
@@ -113,7 +126,61 @@
     </div>
   </div>
 
-  <div class="grid">
+  <!-- ABOUT -->
+  <div class="modebox about" id="mode-about" style="display:none">
+    <h3>What this is</h3>
+    <p>This dashboard estimates a low-altitude drone's <b>intent</b> — <i>benign</i> (commercial
+    delivery), <i>hobbyist</i> (erratic recreational), or <i>hostile</i> (loiter / strike) — from its
+    mechatronic flight signature. The core idea: digital telemetry (GPS, RF) can be spoofed, but
+    <b>actuator physics cannot</b>. Sustained motor <b>torque above the civilian envelope (100%)</b>
+    is the un-spoofable tell. <b>Proof-of-concept on simulated data — not an operational system.</b></p>
+
+    <h3>How the KAN was trained</h3>
+    <p>A <b>Kolmogorov–Arnold Network (KAN)</b> — a compact, interpretable network — reads five
+    per-drone time series (altitude, pitch angle, rotor RPM, velocity, torque load) plus the scene's
+    swarm size, and outputs the intent class. Here is the training story in three figures:</p>
+
+    <div class="figrow">
+      <div class="figure">
+        <img src="/img/archetypes_ideal.png" alt="Idealized class signatures">
+        <div class="cap"><b>1 · Class concept.</b> Idealized signatures of each class. Hostile drones
+        descend aggressively and push torque <b>above the 100% envelope</b> (dashed line); benign and
+        hobbyist stay under it.</div>
+      </div>
+      <div class="figure">
+        <img src="/img/separation_feature_space.png" alt="Feature-space separation">
+        <div class="cap"><b>2 · Realistic data.</b> Tracks are generated from continuous
+        aggression/erraticness factors so the classes <b>overlap</b> (green→orange→red gradient). This
+        avoids a misleadingly perfect score — the overlap is where mistakes happen.</div>
+      </div>
+      <div class="figure">
+        <img src="/img/training_report.png" alt="Training loss and confusion matrix">
+        <div class="cap"><b>3 · Result.</b> Training loss converges <b>without overfitting</b>;
+        <span id="ab-acc">the model</span> reaches its test accuracy with errors only between
+        <i>adjacent</i> classes (hostile↔hobbyist), as expected.</div>
+      </div>
+    </div>
+    <p class="small">All figures use simulated data; numbers are read live from the trained model
+    (<code>/api/metrics</code>), not hardcoded.</p>
+
+    <h3>How to use each section</h3>
+    <div class="tut">
+      <div><b>Simulate</b> — Click <i>Benign</i>, <i>Hobbyist</i>, or <i>Hostile</i> to generate a
+      random track of that type and see it classified. Tick <i>hard / ambiguous</i> for borderline
+      cases the model finds genuinely difficult.</div>
+      <div><b>Configure (sliders)</b> — Build a drone yourself: drag the sliders and the verdict, the
+      charts, and the risk map update live. Push <b>Torque Load above 100%</b> and watch the intent
+      shift toward hostile. You can also <b>click the map to draw the flight path</b>.</div>
+      <div><b>Upload CSV/JSON</b> — Classify your own track. Use the <i>sample.csv / sample.json</i>
+      templates for the exact format (one row per timestep), then drawing on the map still works.</div>
+      <div><b>Reading the output</b> — The <b>verdict + confidence</b> and probability bars show the
+      classification; the <b>Why</b> panel lists the features that drove it (and the torque-envelope
+      status); the <b>map</b> shows a green→red risk density over real strategic sites; the
+      <b>charts</b> show the five raw parameters over the flight.</div>
+    </div>
+  </div>
+
+  <div class="grid" id="results">
     <div class="panel" id="result">
       <div class="verdict" id="verdict">—</div>
       <div class="sub" id="truth"></div>
@@ -189,15 +256,27 @@ async function boot(){
 }
 
 function setMode(mode){
-  ['simulate','configure','upload'].forEach(x=>{
+  ['simulate','configure','upload','about'].forEach(x=>{
     document.getElementById('mode-'+x).style.display = (x===mode)?'':'none';
     document.querySelector(`.tab[data-mode="${x}"]`).classList.toggle('active', x===mode);
   });
+  const isAbout = (mode==='about');
+  document.getElementById('results').style.display = isAbout ? 'none' : '';
+  document.getElementById('charts').style.display = isAbout ? 'none' : '';
+  if(isAbout){ fillAbout(); return; }    // About hides the live panels
   drawMode = (mode==='configure' || mode==='upload');
   document.getElementById('drawbar').style.display = drawMode ? '' : 'none';
   if(!drawMode) clearPath();             // simulate uses auto-generated paths
   if(mode==='configure') configure();    // show a live result immediately
   setTimeout(()=>map.invalidateSize(), 50);
+}
+
+function fillAbout(){
+  const m = MET && MET.model;
+  if(!m) return;
+  document.getElementById('ab-acc').innerHTML =
+    `the model reaches <b>${(m.overall_accuracy*100).toFixed(1)}%</b> overall ` +
+    `(${(m.easy_accuracy*100).toFixed(0)}% on clear cases, ${(m.hard_accuracy*100).toFixed(0)}% on hard/ambiguous)`;
 }
 
 // --- draw the ground path on the map (Configure / Upload) --------------------
