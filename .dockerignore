@@ -1,0 +1,22 @@
+# Keep the build context (and image) small.
+**/__pycache__/
+*.pyc
+.git/
+.venv/
+venv/
+env/
+.claude/
+*.pdf
+
+# Data artifacts are NOT needed at runtime (the service generates tracks in code).
+data/*.npz
+data/*.parquet
+data/*.png
+
+# Model: keep the trained checkpoint + scaler + metrics; drop plots, history,
+# and the intermediate training-version checkpoints.
+model/*.png
+model/history.txt
+model/0.*_config.yml
+model/0.*_state
+model/0.*_cache_data

@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+.claude/
+
+# Regenerable data artifacts (recreate: python -m data.generator)
+data/*.npz
+data/*.parquet
+data/*.png
+
+# Model: keep the trained checkpoint (kan_ckpt_*), scaler, metrics.
+# Ignore plots, training history, and intermediate version checkpoints.
+model/*.png
+model/history.txt
+model/0.*_config.yml
+model/0.*_state
+model/0.*_cache_data

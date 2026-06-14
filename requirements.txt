@@ -1,0 +1,10 @@
+numpy>=2.0
+pandas>=2.0
+pyarrow>=15.0
+matplotlib>=3.8
+torch>=2.2          # CPU wheel in Docker (see Dockerfile --extra-index-url)
+pykan>=0.2          # Phase 2 - KAN model (pulls tqdm, sympy, pyyaml)
+scikit-learn>=1.4   # Phase 2 - splits, metrics, MLP baseline
+fastapi>=0.110      # Phase 3/4 - REST inference service
+uvicorn[standard]>=0.27  # Phase 4 - ASGI server
+# frontend uses Leaflet + Chart.js via CDN (no build step)

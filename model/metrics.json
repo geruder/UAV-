@@ -1,0 +1,60 @@
+{
+  "n_train": 4200,
+  "n_val": 900,
+  "n_test": 900,
+  "overall_accuracy": 0.8566666666666667,
+  "easy_accuracy": 0.9821958456973294,
+  "hard_accuracy": 0.4823008849557522,
+  "confusion_matrix": [
+    [
+      261,
+      21,
+      18
+    ],
+    [
+      23,
+      256,
+      21
+    ],
+    [
+      18,
+      28,
+      254
+    ]
+  ],
+  "class_names": [
+    "benign",
+    "hobbyist",
+    "hostile"
+  ],
+  "feature_importance": {
+    "altitude_mean": 0.020179012790322304,
+    "altitude_max": 0.03189534693956375,
+    "altitude_std": 0.05082992836833,
+    "pitch_angle_mean": 0.03147388622164726,
+    "pitch_angle_max": 0.030301416292786598,
+    "pitch_angle_std": 0.06618853658437729,
+    "rotor_rpm_mean": 0.2851112186908722,
+    "rotor_rpm_max": 0.02214532531797886,
+    "rotor_rpm_std": 0.17365890741348267,
+    "velocity_mean": 0.022293269634246826,
+    "velocity_max": 0.04751560464501381,
+    "velocity_std": 0.17765943706035614,
+    "torque_load_mean": 0.11623763293027878,
+    "torque_load_max": 0.0380941778421402,
+    "torque_load_std": 0.08805614709854126,
+    "torque_time_above_envelope": 0.13575315475463867,
+    "torque_mean_exceedance": 0.021151075139641762,
+    "object_count": 0.6367573738098145
+  },
+  "architecture": {
+    "width": [
+      18,
+      8,
+      3
+    ],
+    "grid": 3,
+    "k": 3
+  },
+  "seed": 42
+}

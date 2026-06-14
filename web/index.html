@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>UAV Intent Estimation — KAN Mechatronic Engine</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root { --bg:#0f1216; --panel:#1a1f27; --ink:#e6e9ef; --muted:#9aa4b2; --line:#2a3240;
+          --benign:#2ca02c; --hobbyist:#ff7f0e; --hostile:#d62728; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:16px 24px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:20px; }
+  .banner { background:#3a2a12; color:#ffcf8f; padding:6px 24px; font-size:13px; border-bottom:1px solid var(--line); }
+  .wrap { padding:18px 24px; max-width:1280px; margin:0 auto; }
+  .tabs { display:flex; gap:6px; margin-bottom:14px; }
+  .tab { background:transparent; color:var(--muted); border:1px solid var(--line); border-radius:8px 8px 0 0;
+         padding:8px 16px; cursor:pointer; font-size:14px; }
+  .tab.active { background:var(--panel); color:var(--ink); border-bottom-color:var(--panel); }
+  .modebox { background:var(--panel); border:1px solid var(--line); border-radius:0 10px 10px 10px;
+             padding:14px 16px; margin-bottom:18px; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  button { background:#222a35; color:var(--ink); border:1px solid var(--line); border-radius:8px;
+           padding:9px 15px; cursor:pointer; font-size:14px; }
+  button:hover { border-color:#3d4a5c; }
+  button.benign { border-left:4px solid var(--benign); }
+  button.hobbyist { border-left:4px solid var(--hobbyist); }
+  button.hostile { border-left:4px solid var(--hostile); }
+  button.go { background:#1f3a52; border-color:#2d597f; }
+  label.chk { color:var(--muted); font-size:14px; display:flex; gap:6px; align-items:center; }
+  .sub { color:var(--muted); font-size:13px; }
+  .sliders { display:grid; grid-template-columns:1fr 1fr; gap:10px 24px; }
+  .slider { display:grid; grid-template-columns:150px 1fr 64px; align-items:center; gap:10px; font-size:13px; }
+  .slider input[type=range] { width:100%; }
+  .slider .val { text-align:right; color:var(--muted); }
+  .hint { font-size:12px; color:var(--muted); margin-top:8px; }
+  a { color:#6fb3ff; }
+  .grid { display:grid; grid-template-columns:380px 1fr; gap:18px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .verdict { font-size:26px; font-weight:700; }
+  .bar { height:10px; border-radius:5px; background:#0c0f13; margin:4px 0 10px; overflow:hidden; }
+  .bar > div { height:100%; }
+  .prob-row { font-size:13px; display:flex; justify-content:space-between; }
+  .why { margin-top:14px; border-top:1px solid var(--line); padding-top:12px; }
+  .why h4 { margin:0 0 8px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .feat { font-size:13px; padding:4px 0; display:flex; justify-content:space-between; }
+  .env { margin-top:10px; padding:8px 10px; border-radius:8px; font-size:13px; }
+  .env.breach { background:#3a1413; color:#ff9b98; }
+  .env.ok { background:#103022; color:#7fd6a6; }
+  #map { height:360px; border-radius:10px; }
+  .charts { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:18px; }
+  .chartbox { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; }
+  .chartbox h5 { margin:0 0 6px; font-size:12px; color:var(--muted); }
+  .legend { font-size:12px; color:var(--muted); margin-top:6px; }
+  .err { color:#ff9b98; font-size:13px; }
+  .site-tip { background:rgba(15,18,22,.82); color:#e6e9ef; border:none; font-size:10px;
+              padding:1px 5px; border-radius:4px; white-space:nowrap; box-shadow:none; }
+  .site-tip::before { display:none; }
+  #sitelist { margin-top:12px; padding-top:10px; border-top:1px solid var(--line); }
+  #sitelist .head { color:var(--ink); font-weight:600; font-size:13px; margin-bottom:6px; }
+  .site-row { font-size:12px; color:var(--muted); line-height:1.5; display:grid;
+              grid-template-columns:18px 150px 1fr; gap:6px; align-items:baseline; }
+  .site-row b { color:var(--ink); font-weight:600; }
+  .site-row .ico { text-align:center; }
+  #maplegend { margin-top:8px; }
+  .ok-badge { color:var(--benign); } .bad-badge { color:var(--hostile); }
+</style>
+</head>
+<body>
+<header><h1>UAV Intent Estimation — KAN + Unified Mechatronic Engine</h1></header>
+<div class="banner">⚠ Proof-of-concept on <b>simulated</b> data. Not an operational system.</div>
+
+<div class="wrap">
+  <div class="tabs">
+    <button class="tab active" data-mode="simulate" onclick="setMode('simulate')">Simulate</button>
+    <button class="tab" data-mode="configure" onclick="setMode('configure')">Configure (sliders)</button>
+    <button class="tab" data-mode="upload" onclick="setMode('upload')">Upload CSV/JSON</button>
+  </div>
+
+  <!-- SIMULATE -->
+  <div class="modebox" id="mode-simulate">
+    <div class="row">
+      <span class="sub">Simulate a track:</span>
+      <button class="benign"   onclick="simulate(0)">Benign</button>
+      <button class="hobbyist" onclick="simulate(1)">Hobbyist</button>
+      <button class="hostile"  onclick="simulate(2)">Hostile</button>
+      <label class="chk"><input type="checkbox" id="hard"/> hard / ambiguous</label>
+      <span id="status" class="sub"></span>
+    </div>
+  </div>
+
+  <!-- CONFIGURE -->
+  <div class="modebox" id="mode-configure" style="display:none">
+    <div class="sliders" id="sliders"></div>
+    <div class="hint">Drag any slider — the classification and risk map update live. Push <b>Torque load</b> above 100% to breach the civilian envelope and watch the intent shift toward <b>hostile</b>.</div>
+  </div>
+
+  <!-- UPLOAD -->
+  <div class="modebox" id="mode-upload" style="display:none">
+    <div class="row">
+      <input type="file" id="file" accept=".csv,.json"/>
+      <label class="chk">swarm size <input type="number" id="ocount" value="1" min="1" style="width:56px"/></label>
+      <button class="go" onclick="uploadFile()">Classify file</button>
+      <span id="uerr" class="err"></span>
+    </div>
+    <div class="hint">
+      CSV: columns <code>altitude, pitch_angle, rotor_rpm, velocity, torque_load</code> (one row per timestep; optional <code>object_count</code> column).
+      JSON: <code>{ "altitude":[…], "pitch_angle":[…], … , "object_count":1 }</code>.
+      Templates: <a href="/api/sample?fmt=csv">sample.csv</a> · <a href="/api/sample?fmt=json">sample.json</a>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel" id="result">
+      <div class="verdict" id="verdict">—</div>
+      <div class="sub" id="truth"></div>
+      <div style="margin-top:14px" id="probs"></div>
+      <div class="why" id="why" style="display:none">
+        <h4>Why (KAN feature attribution)</h4>
+        <div id="feats"></div>
+        <div id="env"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div id="map"></div>
+      <div class="hint" id="drawbar" style="display:none">✎ <b>Click the map</b> to add ground-path waypoints — the classification comes from the parameters/file, the path sets which areas are at risk. <button onclick="clearPath()">Clear path</button></div>
+      <div class="legend" id="maplegend">Risk density = strategic value × proximity to path × P(hostile). Blue line = ground path; icons = strategic sites.</div>
+      <div class="legend" id="sitelist"></div>
+    </div>
+  </div>
+
+  <div class="charts" id="charts"></div>
+</div>
+
+<script>
+let MET=null, map=null, riskLayer=null, pathLayer=null, locLayer=null, draftLayer=null,
+    charts={}, debounce=null, drawMode=false, drawnPath=[], lastBundle=null;
+
+// green -> light-green -> yellow -> orange -> red density colormap
+const CMAP=[[0,[26,152,80]],[0.25,[166,217,106]],[0.5,[255,225,140]],[0.75,[253,141,60]],[1,[215,40,40]]];
+function riskColor(t){
+  t=Math.max(0,Math.min(1,t));
+  for(let i=1;i<CMAP.length;i++){ if(t<=CMAP[i][0]){
+    const [a,ca]=CMAP[i-1], [b,cb]=CMAP[i]; const f=(t-a)/(b-a||1);
+    return ca.map((c,k)=>Math.round(c+(cb[k]-c)*f));
+  }}
+  return CMAP[CMAP.length-1][1];
+}
+const SITE_ICON={bridge:'⇄',military:'⌖',gov:'★',civic:'⚑',port:'⚓',stadium:'◎',heritage:'⛩',normal:'◦'};
+const PARAMS=["altitude","pitch_angle","rotor_rpm","velocity","torque_load"];
+// fixed y-axis ranges so a slider's LEVEL change visibly moves the curve
+// (instead of the chart auto-rescaling and hiding the shift)
+const PRANGE={altitude:[0,135],pitch_angle:[-45,45],rotor_rpm:[4000,9000],velocity:[0,22],torque_load:[30,140]};
+
+// --- presentable labels (keep raw keys out of the UI) ------------------------
+const PARAM_LABELS={altitude:'Altitude (m)',pitch_angle:'Pitch Angle (°)',
+  rotor_rpm:'Rotor RPM',velocity:'Velocity (m/s)',torque_load:'Torque Load (%)'};
+const BASE_LABELS={altitude:'Altitude',pitch_angle:'Pitch Angle',rotor_rpm:'Rotor RPM',
+  velocity:'Velocity',torque_load:'Torque Load'};
+const STAT_LABELS={mean:'mean',max:'peak',std:'variability'};
+const FEATURE_SPECIAL={object_count:'Swarm Size',
+  torque_time_above_envelope:'Time Above Torque Envelope',
+  torque_mean_exceedance:'Mean Torque Exceedance'};
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+function prettyParam(p){ return PARAM_LABELS[p]||p; }
+function prettyFeature(name){
+  if(FEATURE_SPECIAL[name]) return FEATURE_SPECIAL[name];
+  for(const b of Object.keys(BASE_LABELS)){
+    if(name.startsWith(b+'_')){ const stat=name.slice(b.length+1);
+      return BASE_LABELS[b]+' — '+(STAT_LABELS[stat]||stat); }
+  }
+  return name.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+}
+
+async function boot(){
+  MET = await (await fetch('/api/metrics')).json();
+  map = L.map('map').setView([41.030,29.000], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(map);
+  map.on('click', onMapClick);
+  buildCharts();
+  await buildSliders();
+  const m = MET.model;
+  if(m){ document.getElementById('status').textContent =
+    `model: ${(m.overall_accuracy*100).toFixed(1)}% test acc (easy ${(m.easy_accuracy*100).toFixed(0)}%, hard ${(m.hard_accuracy*100).toFixed(0)}%)`; }
+}
+
+function setMode(mode){
+  ['simulate','configure','upload'].forEach(x=>{
+    document.getElementById('mode-'+x).style.display = (x===mode)?'':'none';
+    document.querySelector(`.tab[data-mode="${x}"]`).classList.toggle('active', x===mode);
+  });
+  drawMode = (mode==='configure' || mode==='upload');
+  document.getElementById('drawbar').style.display = drawMode ? '' : 'none';
+  if(!drawMode) clearPath();             // simulate uses auto-generated paths
+  if(mode==='configure') configure();    // show a live result immediately
+  setTimeout(()=>map.invalidateSize(), 50);
+}
+
+// --- draw the ground path on the map (Configure / Upload) --------------------
+function onMapClick(e){
+  if(!drawMode) return;
+  drawnPath.push([e.latlng.lat, e.latlng.lng]);
+  renderDraft();
+  recomputeRisk();
+}
+function renderDraft(){
+  if(draftLayer) map.removeLayer(draftLayer);
+  const pts=drawnPath.map(([la,lo])=>[la,lo]);
+  draftLayer=L.layerGroup([
+    L.polyline(pts,{color:'#ffffff',weight:2,dashArray:'5,5',opacity:0.9}),
+    ...pts.map((p,i)=>L.circleMarker(p,{radius:4,color:'#fff',fillColor:'#2b6cff',fillOpacity:1})
+        .bindTooltip(String(i+1),{permanent:true,direction:'top',className:'site-tip'}))
+  ]).addTo(map);
+}
+function clearPath(){
+  drawnPath=[];
+  if(draftLayer){ map.removeLayer(draftLayer); draftLayer=null; }
+  if(lastBundle) recomputeRisk();
+}
+
+function buildCharts(){
+  const host=document.getElementById('charts');
+  PARAMS.forEach(p=>{
+    const box=document.createElement('div'); box.className='chartbox';
+    box.innerHTML=`<h5>${prettyParam(p)}</h5><canvas id="c_${p}" height="120"></canvas>`;
+    host.appendChild(box);
+    charts[p]=new Chart(document.getElementById('c_'+p),{
+      type:'line', data:{labels:[],datasets:[{data:[],borderWidth:1.5,pointRadius:0,borderColor:'#888'}]},
+      options:{plugins:{legend:{display:false}},scales:{x:{display:false},
+        y:{min:PRANGE[p][0], max:PRANGE[p][1],
+           grid:{color:'#222a35'}, ticks:{color:'#9aa4b2',font:{size:9},maxTicksLimit:6}}},
+        animation:false}
+    });
+  });
+}
+
+async function buildSliders(){
+  const {sliders} = await (await fetch('/api/sliders')).json();
+  const host=document.getElementById('sliders');
+  sliders.forEach(s=>{
+    const div=document.createElement('div'); div.className='slider';
+    div.innerHTML=`<span>${s.label}</span>
+      <input type="range" id="s_${s.key}" min="${s.min}" max="${s.max}" step="${s.step}" value="${s.default}">
+      <span class="val" id="v_${s.key}">${s.default}</span>`;
+    host.appendChild(div);
+    const inp=div.querySelector('input');
+    inp.addEventListener('input',()=>{
+      document.getElementById('v_'+s.key).textContent = inp.value;
+      clearTimeout(debounce); debounce=setTimeout(configure, 220);
+    });
+  });
+}
+
+function sliderValues(){
+  const v={}; document.querySelectorAll('#sliders input[type=range]').forEach(i=>{
+    v[i.id.slice(2)] = parseFloat(i.value);
+  });
+  v.object_count = Math.round(v.object_count||1);
+  return v;
+}
+
+function colorFor(id){ return MET.class_colors[id]; }
+
+// --- the three entry points, all funnel into applyBundle ---------------------
+async function simulate(intentId){
+  const hard=document.getElementById('hard').checked;
+  document.getElementById('status').textContent='simulating…';
+  const b = await post('/api/simulate', {intent_id:intentId, hard});
+  await applyBundle(b);
+  document.getElementById('status').textContent='done';
+}
+
+async function configure(){
+  const b = await post('/api/synthesize', sliderValues());
+  await applyBundle(b);
+}
+
+async function uploadFile(){
+  const f=document.getElementById('file').files[0];
+  const err=document.getElementById('uerr'); err.textContent='';
+  if(!f){ err.textContent='Choose a CSV or JSON file first.'; return; }
+  const fd=new FormData(); fd.append('file', f);
+  fd.append('object_count', document.getElementById('ocount').value||1);
+  const res=await fetch('/api/classify_file',{method:'POST',body:fd});
+  if(!res.ok){ const e=await res.json().catch(()=>({detail:res.statusText}));
+    err.textContent='Error: '+(e.detail||'could not classify file'); return; }
+  await applyBundle(await res.json());
+}
+
+async function applyBundle(b){
+  lastBundle = b;
+  renderPrediction(b);
+  renderCharts(b.track, b.prediction.intent_id);
+  await recomputeRisk();
+}
+
+async function recomputeRisk(){
+  if(!lastBundle) return;
+  const track=Object.assign({}, lastBundle.track, {object_count:lastBundle.object_count});
+  if(drawMode && drawnPath.length>=2) track.path = drawnPath;  // user-drawn trajectory
+  const rk = await post('/api/risk', track);
+  renderMap(rk);
+}
+
+async function post(path, body){
+  return (await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)})).json();
+}
+
+// --- rendering ---------------------------------------------------------------
+function renderPrediction(b){
+  const p=b.prediction;
+  document.getElementById('verdict').textContent = p.intent.toUpperCase();
+  document.getElementById('verdict').style.color = colorFor(p.intent_id);
+  let line;
+  if(b.true_intent!==undefined){
+    const correct = p.intent_id===b.true_intent_id;
+    line = `True: <b>${cap(b.true_intent)}</b>${b.hard?' (hard)':''} · Predicted: <b>${cap(p.intent)}</b> ` +
+      (correct?'<span class="ok-badge">✓</span>':'<span class="bad-badge">✗</span>');
+  } else {
+    line = `Predicted: <b>${cap(p.intent)}</b>` + (b.source?` · source: ${b.source}`:'');
+  }
+  line += ` · confidence ${(p.confidence*100).toFixed(0)}% · swarm ${b.object_count}`;
+  document.getElementById('truth').innerHTML = line;
+
+  document.getElementById('probs').innerHTML = MET.class_names.map((name,i)=>{
+    const v=p.probabilities[name]||0;
+    return `<div class="prob-row"><span>${cap(name)}</span><span>${(v*100).toFixed(1)}%</span></div>
+            <div class="bar"><div style="width:${(v*100).toFixed(1)}%;background:${colorFor(i)}"></div></div>`;
+  }).join('');
+
+  document.getElementById('why').style.display='block';
+  document.getElementById('feats').innerHTML = p.explanation.top_features.map(f=>
+    `<div class="feat"><span>${prettyFeature(f.feature)} <span style="color:var(--muted)">(${f.direction})</span></span>
+     <span>imp ${f.importance}</span></div>`).join('');
+  const e=p.explanation;
+  document.getElementById('env').className = 'env '+(e.envelope_breached?'breach':'ok');
+  document.getElementById('env').textContent = e.note;
+}
+
+function renderCharts(track, intentId){
+  const labels=track[PARAMS[0]].map((_,i)=>i);
+  PARAMS.forEach(p=>{
+    const ch=charts[p];
+    ch.data.labels=labels;
+    ch.data.datasets[0].data=track[p];
+    ch.data.datasets[0].borderColor=colorFor(intentId);
+    if(p==='torque_load'){
+      ch.data.datasets[1]={data:labels.map(()=>MET.torque_envelope),borderColor:'#ffffff55',
+        borderDash:[4,4],borderWidth:1,pointRadius:0};
+    }
+    ch.update();
+  });
+}
+
+function renderMap(rk){
+  const n=rk.grid_n, c=rk.center, s=rk.span;
+  const north=c[0]+s/2, south=c[0]-s/2, west=c[1]-s/2, east=c[1]+s/2;
+  const bounds=[[south,west],[north,east]];
+  const frac2ll=(x,y)=>[north-(y)*s, west+(x)*s];  // x,y in [0,1]
+  // smooth green->red density field on an absolute scale
+  const risk=rk.risk_grid;
+  const cv=document.createElement('canvas'); cv.width=n; cv.height=n;
+  const ctx=cv.getContext('2d'); const img=ctx.createImageData(n,n);
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++){
+    const v=risk[i][j]; const [r,g,b]=riskColor(v); const idx=(i*n+j)*4;
+    img.data[idx]=r; img.data[idx+1]=g; img.data[idx+2]=b;
+    img.data[idx+3]= v<0.04 ? 0 : Math.round(Math.min(0.85,0.3+0.6*v)*255);
+  }
+  ctx.putImageData(img,0,0);
+  if(riskLayer) map.removeLayer(riskLayer);
+  riskLayer=L.imageOverlay(cv.toDataURL(),bounds,{opacity:0.85}).addTo(map);
+
+  // path
+  const latlng=rk.path.map(([x,y])=>frac2ll(x/n,y/n));
+  if(pathLayer) map.removeLayer(pathLayer);
+  pathLayer=L.layerGroup([
+    L.polyline(latlng,{color:'#2b6cff',weight:3}),
+    L.circleMarker(latlng[0],{radius:4,color:'#2b6cff',fillColor:'#9ec2ff',fillOpacity:1}),
+    L.circleMarker(latlng[latlng.length-1],{radius:6,color:'#2b6cff',fillColor:'#2b6cff',fillOpacity:1})
+  ]).addTo(map);
+
+  // strategic site markers (icon + label + clickable strategic meaning)
+  if(locLayer) map.removeLayer(locLayer);
+  locLayer=L.layerGroup((rk.locations||[]).map(l=>{
+    const m=L.marker(frac2ll(l.x,l.y),{icon:L.divIcon({className:'site',
+      html:`<div style="font-size:16px;line-height:16px;text-shadow:0 0 3px #000">${SITE_ICON[l.type]||'◦'}</div>`,
+      iconSize:[16,16]})});
+    m.bindTooltip(l.name,{permanent:true,direction:'right',className:'site-tip'});
+    m.bindPopup(`<b>${l.name}</b><br><span style="color:#555">${l.meaning}</span><br>strategic value: ${l.weight}`);
+    return m;
+  })).addTo(map);
+  if(draftLayer){ draftLayer.bringToFront && draftLayer.bringToFront(); }
+
+  map.setView([c[0],c[1]], 13, {animate:false});  // stable framing centered on the field
+  const tgt=rk.target ? ` · path → <b>${rk.target.name}</b>` : '';
+  document.getElementById('maplegend').innerHTML =
+    `<b>Risk density</b> = strategic value × proximity to path × P(hostile)${tgt}.<br>` +
+    `Blue line = ground path · icons = strategic sites (click a marker for details).`;
+  // strategic-site legend, one clean row per site
+  document.getElementById('sitelist').innerHTML =
+    '<div class="head">Strategic sites</div>' + (rk.locations||[]).map(l=>
+      `<div class="site-row"><span class="ico">${SITE_ICON[l.type]||'◦'}</span>` +
+      `<b>${l.name}</b><span>${l.meaning}</span></div>`).join('');
+}
+
+boot();
+</script>
+</body>
+</html>

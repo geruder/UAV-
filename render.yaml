@@ -1,0 +1,10 @@
+# Render Blueprint. Push this repo to GitHub, then in Render:
+# New + → Blueprint → pick the repo. Render reads this file and builds the Docker image.
+services:
+  - type: web
+    name: uav-intent-estimation
+    runtime: docker
+    plan: free                 # free tier; first request after idle is slow (cold start)
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/metrics
+    autoDeploy: true
