@@ -148,11 +148,9 @@
   </div>
   <div>
     <div class="brand-title">UAV Intent Estimation</div>
-    <div class="brand-sub">KAN-based cyber-physical intent &amp; geographic-risk analysis</div>
+    <div class="brand-sub">Integrated UAV Intent Estimation and Geographical Risk Modeling</div>
   </div>
-  <div class="header-chip" id="header-chip"><span class="dot"></span> loading model…</div>
 </header>
-<div class="banner">⚠ Proof-of-concept on <b>simulated</b> data. Not an operational system.</div>
 
 <div class="wrap">
   <div class="tabs">
@@ -203,7 +201,7 @@
     delivery), <i>hobbyist</i> (erratic recreational), or <i>hostile</i> (loiter / strike) — from its
     mechatronic flight signature. The core idea: digital telemetry (GPS, RF) can be spoofed, but
     <b>actuator physics cannot</b>. Sustained motor <b>torque above the civilian envelope (100%)</b>
-    is the un-spoofable tell. <b>Proof-of-concept on simulated data — not an operational system.</b></p>
+    is the un-spoofable tell.</p>
 
     <h3>How the KAN was trained</h3>
     <p>A <b>Kolmogorov–Arnold Network (KAN)</b> — a compact, interpretable network — reads five
@@ -305,8 +303,6 @@
   <span class="sep">·</span>
   <span id="footer-model">model loading…</span>
   <span class="sep">·</span>
-  <span>Proof-of-concept on simulated data — not an operational system</span>
-  <span class="sep">·</span>
   <span><a href="#" onclick="setMode('about');return false;">About</a></span>
 </footer>
 
@@ -363,8 +359,6 @@ async function boot(){
     const acc=`${(m.overall_accuracy*100).toFixed(1)}%`;
     document.getElementById('status').textContent =
       `model: ${acc} test acc (easy ${(m.easy_accuracy*100).toFixed(0)}%, hard ${(m.hard_accuracy*100).toFixed(0)}%)`;
-    document.getElementById('header-chip').innerHTML =
-      `<span class="dot"></span> KAN online · <span class="num">${acc}</span> test acc`;
     document.getElementById('footer-model').innerHTML =
       `KAN · <span class="num">${acc}</span> held-out accuracy · seed ${m.seed!=null?m.seed:42}`;
   }
@@ -403,12 +397,13 @@ function onMapClick(e){
 }
 function renderDraft(){
   if(draftLayer) map.removeLayer(draftLayer);
-  const pts=drawnPath.map(([la,lo])=>[la,lo]);
-  draftLayer=L.layerGroup([
-    L.polyline(pts,{color:'#ffffff',weight:2,dashArray:'5,5',opacity:0.9}),
-    ...pts.map((p,i)=>L.circleMarker(p,{radius:4,color:'#fff',fillColor:'#2b6cff',fillOpacity:1})
+  // numbered node markers only; the trajectory line itself is drawn in renderMap
+  // through the actual clicked points (so it always matches these markers).
+  draftLayer=L.layerGroup(
+    drawnPath.map(([la,lo],i)=>L.circleMarker([la,lo],
+        {radius:5,color:'#2b6cff',weight:2,fillColor:'#fff',fillOpacity:1})
         .bindTooltip(String(i+1),{permanent:true,direction:'top',className:'site-tip'}))
-  ]).addTo(map);
+  ).addTo(map);
 }
 function clearPath(){
   drawnPath=[];
@@ -578,7 +573,11 @@ function renderMap(rk){
   riskLayer=L.imageOverlay(cv.toDataURL(),bounds,{opacity:0.85}).addTo(map);
 
   // path
-  const latlng=rk.path.map(([x,y])=>frac2ll(x/n,y/n));
+  // In draw mode, trace the user's ACTUAL clicked waypoints (not the grid-clipped
+  // server path) so the line always matches the numbered nodes, even near map edges.
+  const latlng=(drawMode && drawnPath.length>=2)
+    ? drawnPath.map(([la,lo])=>[la,lo])
+    : rk.path.map(([x,y])=>frac2ll(x/n,y/n));
   if(pathLayer) map.removeLayer(pathLayer);
   pathLayer=L.layerGroup([
     L.polyline(latlng,{color:'#2b6cff',weight:3}),
